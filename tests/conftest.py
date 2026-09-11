@@ -39,5 +39,7 @@ def engine():
 @pytest.fixture
 def service(engine) -> InventoryService:
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE stock_movements, products RESTART IDENTITY CASCADE"))
+        conn.execute(text(
+            "TRUNCATE inventory_analytics_runs, stock_movements, products RESTART IDENTITY CASCADE"
+        ))
     return InventoryService(create_session_factory(engine))

@@ -9,8 +9,10 @@
 import enum
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from inventario.db import Base
@@ -88,3 +90,34 @@ class StockMovement(Base):
     )
 
     product: Mapped[Product] = relationship(back_populates="movements")
+
+
+# Índices del historial por producto y de la analítica batch (inventario/analytics). En bases ya
+# existentes create_all() no los agrega: usa `python -m inventario.analytics --apply-indexes`.
+Index(
+    # Último movimiento y ventanas de tiempo por producto, resueltos con index-only scans.
+    "ix_movements_product_created",
+    StockMovement.product_id,
+    StockMovement.created_at.desc(),
+    StockMovement.id.desc(),
+    postgresql_include=["kind", "quantity", "stock_after"],
+)
+Index(
+    # Última venta de cada producto sin recorrer sus entradas ni ajustes.
+    "ix_movements_product_sales",
+    StockMovement.product_id,
+    StockMovement.created_at.desc(),
+    postgresql_where=text("kind = 'venta'"),
+)
+
+
+class AnalyticsRun(Base):
+    """Reporte consolidado de cada ejecución del batch de analítica."""
+
+    __tablename__ = "inventory_analytics_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # fecha de corte del snapshot
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    report: Mapped[dict[str, Any]] = mapped_column(JSONB)
