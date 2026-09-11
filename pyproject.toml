@@ -1,0 +1,17 @@
+[project]
+name = "control-inventario"
+version = "0.1.0"
+description = "Control de inventario de escritorio para ventas en Mercado Libre"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

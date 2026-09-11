@@ -1,0 +1,10 @@
+# Normaliza finales de línea en el repositorio (LF) y los ajusta al sistema al hacer checkout.
+* text=auto
+
+# Los scripts de Windows necesitan CRLF; los de Linux/Docker, LF.
+*.bat text eol=crlf
+*.sh  text eol=lf
+*.sql text eol=lf
+
+*.png binary
+*.ico binary

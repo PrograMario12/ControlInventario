@@ -1,0 +1,25 @@
+# PostgreSQL local para desarrollo y pruebas. Las credenciales se leen del archivo .env
+# (ver .env.example); nunca se escriben aquí.
+services:
+  db:
+    image: postgres:17
+    container_name: inventario-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-inventario}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env (ver .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-inventario}
+    ports:
+      # Sólo accesible desde esta computadora, no desde la red local.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
