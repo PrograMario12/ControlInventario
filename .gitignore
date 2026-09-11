@@ -5,8 +5,9 @@
 .neon
 .claude/settings.local.json
 
-# --- Respaldos de la base de datos (contienen tus datos) ---
+# --- Respaldos y reportes (contienen datos del negocio) ---
 backups/
+reports/
 *.dump
 *.sql.gz
 

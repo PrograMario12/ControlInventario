@@ -66,6 +66,45 @@ Doble clic en **`iniciar.bat`**, o desde la terminal:
 
 Atajos: `Ctrl+N` nuevo producto · `Ctrl+R` venta · `Ctrl+E` entrada · `Ctrl+H` historial · `Ctrl+F` buscar · `F5` actualizar.
 
+## Analítica (proceso batch)
+
+Evalúa la salud del inventario sin afectar la operación diaria y genera un reporte JSON:
+
+| Sección | Qué detecta |
+|---|---|
+| `stock_health` | Productos **agotados** (ordenados por lo que más se vendía) y **críticos** (stock ≤ mínimo, ordenados por los días que les quedan). |
+| `movement_health` | **Estancados** (sin ventas en N días, ordenados por capital inmovilizado), de **lenta rotación** (el stock alcanza para más de N días) y productos nuevos sin historia suficiente. |
+| `valuation` | Unidades, valor a costo y a precio de venta, margen potencial, capital estancado y stock en productos inactivos. |
+| `catalog_anomalies` | Precio o costo en cero, margen negativo, sin SKU, sin publicación de ML, nombre incompleto, stock que no cuadra con el historial y productos inactivos con stock. |
+
+```powershell
+# Una sola vez por base de datos: crea los índices que usa el batch (sin bloquear la operación).
+.\.venv\Scripts\python.exe -m inventario.analytics --apply-indexes
+
+# Ejecutar: deja el JSON en reports\ y lo guarda en la tabla inventory_analytics_runs.
+.\analitica.bat
+
+# Opciones (ver todas con --help)
+.\.venv\Scripts\python.exe -m inventario.analytics --chunk-size 500 --window-days 30 --dead-days 90 --slow-days 60 --max-items 50 -v
+```
+
+Para correrlo solo cada mañana, prográmalo en el Programador de tareas de Windows:
+
+```powershell
+schtasks /Create /SC DAILY /ST 07:00 /TN "Inventario - analitica" /TR "\"$PWD\analitica.bat\""
+```
+
+Cómo cuida los recursos de la base en la nube:
+
+- Una sola conexión (pool acotado a 1) que se cierra al terminar.
+- Una transacción `REPEATABLE READ READ ONLY`: todos los lotes ven el mismo instante y no puede escribir nada.
+- Lee el catálogo por lotes paginados por llave (`--chunk-size`); PostgreSQL agrega los movimientos con
+  índices y devuelve una fila por producto, en vez de enviar el historial completo por la red.
+- Límite de tiempo por consulta en el servidor; en Python sólo vive un lote a la vez.
+
+Reglas no disponibles: el catálogo no tiene columnas de **categoría** ni **descripción**; el reporte
+las marca como `not_applicable` en lugar de inventar resultados.
+
 ## Respaldos
 
 Los respaldos contienen tus datos: la carpeta `backups/` está excluida de git.
@@ -119,6 +158,7 @@ inventario/
   models.py        tablas: products y stock_movements
   services.py      lógica de negocio (la UI sólo habla con esta capa)
   ui/              ventanas PySide6
+  analytics/       analítica batch: sql.py (consulta e índices), metrics.py (cálculo), batch.py (ejecución)
 tests/             pruebas de la lógica contra PostgreSQL
 neon.ts            configuración del proyecto en Neon
 ```
@@ -128,6 +168,7 @@ neon.ts            configuración del proyecto en Neon
 - **products** guarda el stock actual de cada producto.
 - **stock_movements** guarda cada cambio de stock con su fecha, cantidad (con signo),
   stock resultante, precio de venta y costo unitario del momento.
+- **inventory_analytics_runs** guarda el reporte (JSONB) de cada ejecución de la analítica.
 
 El stock sólo cambia a través de movimientos, así que siempre hay un historial auditable.
 Ese historial es la base para la analítica futura.
